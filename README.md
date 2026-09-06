@@ -2,7 +2,7 @@
 
 **Navigate the universe of software.**
 
-A Phase 1 visual prototype of an interactive software atlas. Built with Next.js App Router, TypeScript, React Three Fiber, Three.js, Drei, and Tailwind CSS. No external services or credentials are required.
+A Phase 2 software discovery experience built on the original cinematic atlas. Built with Next.js App Router, TypeScript, React Three Fiber, Three.js, Drei, and Tailwind CSS. Search and the curated universe work without external services. GitHub/npm metadata enriches the inspector when available. No new dependencies were needed for Phase 2.
 
 ## Run locally
 
@@ -23,17 +23,32 @@ src/
     layout.tsx                 Metadata and root layout
     page.tsx                   Landing page
     globals.css                Space atmosphere and responsive interface styles
+    api/technologies/[id]/     Server-side metadata GET endpoint
   data/
     technologies.ts            Typed nodes, categories, and undirected relationships
+    technology-sources.ts      Explicit GitHub repository/npm package mappings
   components/
     universe-explorer.tsx      Interaction state, directory, help, and error boundary
     explorer-overlay.tsx       Branding, category filters, previews, and inspector
     technology-icon.tsx        Lightweight inline technology glyphs
+    technology-search.tsx      Accessible ranked search combobox
+    technology-metadata.tsx    Cached, independently loading inspector signals
     scene/
       universe-scene.tsx       Canvas, starfield, connections, guides, and camera rig
       technology-node.tsx      Geometric core, glow shader, orbital rings, and label
+  lib/
+    search.ts                 Precomputed local search index and aliases
+    selection-url.ts          Shareable selection and browser history subscription
+  services/
+    metadata.ts               Server-only entry and optional token access
+    metadata-transport.ts     Validated providers, timeouts, cache, deduplication
+  types/
+    metadata.ts               Shared provider/result contracts
 tests/
   universe.spec.ts             Graph integrity and desktop/mobile browser tests
+  discovery.spec.ts            Search, URLs, inspector, fallback, responsive tests
+  metadata-services.spec.ts    Deterministic mocked provider/service tests
+  live-metadata.spec.ts        Opt-in real API smoke check
 playwright.config.ts          Production-server browser test configuration
 ```
 
@@ -46,6 +61,22 @@ playwright.config.ts          Production-server browser test configuration
 - Use the directory as a keyboard-friendly alternative to spatial navigation.
 - Reset the view or press Escape to return to the full universe.
 - Optional automatic rotation pauses on camera interaction and respects reduced-motion preferences.
+- Press `/` or focus search to find names, partial names, aliases (such as `golang` or `postgres`), categories, or descriptions. Arrow keys navigate; Enter selects; Escape closes search without clearing the current selection.
+- Search is global, independent of category filters. Results reuse the existing camera focus and graph highlighting.
+- Selection uses shareable URLs such as `/?technology=react`. Direct links, reload, Back, and Forward restore selection without replacing the canvas. Reset clears the technology parameter and preserves unrelated URL parameters. Invalid IDs show a recoverable notice. Category filters are transient and selection takes precedence.
+- The inspector shows local descriptions and curated neighbors immediately, then GitHub statistics and npm package/dependency information when available. Its bounded scroll area keeps the scene usable on mobile.
+
+## External metadata and environment
+
+`GET /api/technologies/[id]` accepts only curated IDs. Unknown IDs return 404; valid IDs return independently tagged GitHub/npm results, including partial failure states. UI components never contact providers directly. Fixed, curated upstream hosts prevent arbitrary URL fetching. Provider JSON is validated, error messages are sanitized, and all external links use explicit trusted source mappings.
+
+GitHub's repository API supplies repository name, stars, forks, open issues (including pull requests), language, and URL. npm's latest-version endpoint supplies package/version/license and declared dependency/peer-dependency maps. These are real provider values, not hardcoded statistics. Missing values are labeled rather than estimated. Hugging Face uses its Transformers library as a representative repository; TensorFlow's npm source is explicitly TensorFlow.js. Technologies without a meaningful curated npm package are labeled accordingly.
+
+No environment variable is required. For higher GitHub API limits, optionally define `GITHUB_TOKEN` in `.env.local`, following `.env.example`. It is read only by the server-only service. Never use a `NEXT_PUBLIC_` prefix. `.env.local` and other environment files are ignored; `.env.example` contains no secret.
+
+Provider requests run in parallel, with five-second timeouts covering response bodies and abort cleanup. Successful provider results are cached for 15 minutes per server process, failures for 60 seconds, and rate limits until the indicated retry time (bounded to 24 hours for pathological headers). In-flight requests are deduplicated. Client requests also use a bounded curated-ID cache and a 12-second timeout, preventing repeated calls on hover or rerender. All-failure responses never replace local content; network failures offer a retry button. Cached provider failures can be retried by revisiting after expiry. Caches are in-memory, not persistence or distributed rate-limit infrastructure.
+
+All 29 graph relationships remain explicit curated ecosystem links, with type, direction, and provenance fields ready for future dependency relationships. npm manifests are shown separately and never auto-insert nodes or edges. Connection curves and neighbor lookups are precomputed outside frame updates.
 
 ## Scene design
 
@@ -71,8 +102,15 @@ $env:PLAYWRIGHT_BROWSERS_PATH="$PWD\.cache\ms-playwright"
 npx playwright install chromium
 ```
 
-Tests cover graph integrity, scene readiness, hover, camera movement, selection, neighbor navigation, filtering, view controls, help, mobile bounds, reduced motion, and the WebGL fallback. Desktop/mobile screenshots are generated under the ignored `test-results/` directory. Chromium uses software WebGL during automated tests; real-device GPU performance should still be reviewed separately.
+Tests preserve Phase 1 coverage and add search ranking/keyboard input, direct URLs/history, canvas identity, inspector metadata, request deduplication, stale-response isolation, network/provider failures, rate limits, malformed payloads, secrets isolation, and mobile/tablet bounds. Metadata fixtures are explicitly synthetic test-only data. The live provider test is skipped by default. To opt in (PowerShell, after build):
 
-## Intentionally outside Phase 1
+```powershell
+$env:CODEVERSE_LIVE_METADATA="1"
+npx playwright test tests/live-metadata.spec.ts
+```
 
-Search is a clearly labeled visual preview only. No authentication, accounts, databases, APIs, GitHub/npm integrations, live ecosystem data, persistence, or deployment are implemented. All technology information is local static data. The live indicator means the interactive scene is ready, not that it is receiving live data.
+Desktop/mobile screenshots are generated under the ignored `test-results/` directory. Chromium uses software WebGL during automated tests; aesthetic screenshot review and real-device GPU performance should still be reviewed separately.
+
+## Intentionally deferred
+
+No authentication/accounts, bookmarks, personalized universes, PostgreSQL/Redis persistence, deployment, social features, collaboration, or advanced analytics. There is no automatic universe expansion or dependency-graph import. The live indicator means the interactive scene is ready, not a real-time data feed. This remains Phase 2 only.
