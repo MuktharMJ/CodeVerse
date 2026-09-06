@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ExplorerOverlay } from "./explorer-overlay";
 import { categories, technologies, type CategoryFilter } from "@/data/technologies";
+import { navigateToTechnology, useTechnologySelection } from "@/lib/selection-url";
 
 const UniverseScene = dynamic(() => import("./scene/universe-scene"), { ssr: false });
 
@@ -15,9 +16,10 @@ class SceneBoundary extends Component<{ children: ReactNode; onError: () => void
 }
 
 export function UniverseExplorer() {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { selectedId, invalidSelection } = useTechnologySelection();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [activeCategory, setActiveCategory] = useState<CategoryFilter>("All");
+  const [categoryFilter, setActiveCategory] = useState<CategoryFilter>("All");
+  const activeCategory = selectedId ? "All" : categoryFilter;
   const [isAutoRotate, setAutoRotate] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
@@ -32,9 +34,9 @@ export function UniverseExplorer() {
   const fail = useCallback(() => { setSceneFailed(true); setSceneReady(true); setShowDirectory(true); }, []);
 
   const reset = useCallback(() => {
-    setSelectedId(null); setHoveredId(null); setActiveCategory("All"); setResetKey((key) => key + 1);
+    navigateToTechnology(null); setHoveredId(null); setActiveCategory("All"); setResetKey((key) => key + 1);
   }, []);
-  const select = useCallback((id: string) => { setSelectedId(id); setHoveredId(null); setAutoRotate(false); setShowDirectory(false); }, []);
+  const select = useCallback((id: string) => { navigateToTechnology(id); setHoveredId(null); setActiveCategory("All"); setAutoRotate(false); setShowDirectory(false); }, []);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -45,7 +47,7 @@ export function UniverseExplorer() {
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !dialog.current?.open) { reset(); setShowDirectory(false); }
+      if (event.key === "Escape" && !event.defaultPrevented && !dialog.current?.open) { reset(); setShowDirectory(false); }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
@@ -63,7 +65,8 @@ export function UniverseExplorer() {
     </div>
     <div className="scene-vignette" aria-hidden="true" />
     {!sceneReady && <div className="scene-loading" role="status"><span className="loading-orbit" />Mapping the universe<span>17 technologies. Infinite possibilities.</span></div>}
-    <ExplorerOverlay selectedId={selectedId} hoveredId={hoveredId} activeCategory={activeCategory} onCategoryChange={(category) => { setActiveCategory(category); setSelectedId(null); setHoveredId(null); }} onSelect={select} onReset={reset} onZoom={(direction) => setZoomRequest((request) => ({ direction, key: (request?.key ?? 0) + 1 }))} isAutoRotate={isAutoRotate} onToggleRotate={() => setAutoRotate((value) => !value)} onShowHelp={() => setShowHelp(true)} sceneReady={sceneReady && !sceneFailed} sceneFailed={sceneFailed} reducedMotion={reducedMotion} />
+    <ExplorerOverlay selectedId={selectedId} hoveredId={hoveredId} activeCategory={activeCategory} onCategoryChange={(category) => { setActiveCategory(category); navigateToTechnology(null); setHoveredId(null); }} onSelect={select} onReset={reset} onZoom={(direction) => setZoomRequest((request) => ({ direction, key: (request?.key ?? 0) + 1 }))} isAutoRotate={isAutoRotate} onToggleRotate={() => setAutoRotate((value) => !value)} onShowHelp={() => setShowHelp(true)} sceneReady={sceneReady && !sceneFailed} sceneFailed={sceneFailed} reducedMotion={reducedMotion} />
+    {invalidSelection && <div className="navigation-notice" role="status">That technology isn&apos;t in this universe yet. <button onClick={reset}>Return to the atlas</button></div>}
     <button className="directory-toggle" onClick={() => setShowDirectory((value) => !value)} aria-expanded={showDirectory} aria-controls="technology-directory">{showDirectory ? "Close directory" : "Browse technologies"}<span aria-hidden="true">{showDirectory ? "−" : "↗"}</span></button>
     {showDirectory && <section id="technology-directory" className="technology-directory" aria-label="Technology directory"><div className="section-label">EXPLORE THE ECOSYSTEM</div><div className="directory-grid">{technologies.filter((technology) => activeCategory === "All" || technology.category === activeCategory).map((technology) => <button key={technology.id} onClick={() => select(technology.id)}><span className="category-dot" style={{ background: categories[technology.category].color }} /><span>{technology.name}</span><span className="directory-category">{technology.category}</span></button>)}</div></section>}
     <dialog ref={dialog} className="help-dialog" onCancel={() => setShowHelp(false)} onClick={(event) => { if (event.target === event.currentTarget) setShowHelp(false); }} aria-labelledby="help-title">
