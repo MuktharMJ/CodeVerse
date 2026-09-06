@@ -54,8 +54,8 @@ test("desktop universe renders and supports exploration", async ({ page }, testI
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();
-  await page.getByRole("textbox", { name: /Find your next discovery/ }).focus();
-  await expect(page.locator(".search-hint")).toBeVisible();
+  await page.getByRole("combobox", { name: "Search technologies" }).focus();
+  await expect(page.getByRole("listbox")).toBeVisible();
   expect(errors).toEqual([]);
 });
 
