@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import {
   categories,
   connections,
@@ -8,6 +9,8 @@ import {
   type CategoryFilter,
 } from "../data/technologies";
 import { TechnologyIcon } from "./technology-icon";
+import { TechnologySearch } from "./technology-search";
+import { TechnologyMetadata } from "./technology-metadata";
 
 export interface ExplorerOverlayProps {
   selectedId: string | null;
@@ -66,6 +69,8 @@ export function ExplorerOverlay({
   const selected = selectedId ? technologyById[selectedId] : undefined;
   const hovered = hoveredId && hoveredId !== selectedId ? technologyById[hoveredId] : undefined;
   const connected = selected ? getConnectedIds(selected.id).map((id) => technologyById[id]).filter(Boolean) : [];
+  const inspector = useRef<HTMLElement>(null);
+  useEffect(() => { if (inspector.current) inspector.current.scrollTop = 0; }, [selectedId]);
 
   return (
     <div className={`overlay${selected ? " has-selection" : ""}`} data-scene-ready={sceneReady}>
@@ -75,7 +80,7 @@ export function ExplorerOverlay({
           <span className="brand-label">SOFTWARE ATLAS</span>
         </div>
         <div className="edition">
-          <span className="edition-label">EXPLORER / 001</span>
+          <span className="edition-label">EXPLORER / 002</span>
           <span className="live-status" role="status">
             <span className={`live-dot${sceneReady ? " is-live" : " is-loading"}`} aria-hidden="true" />
             {sceneFailed ? "DIRECTORY MODE" : sceneReady ? "LIVE UNIVERSE" : "MAPPING THE UNIVERSE"}
@@ -87,21 +92,7 @@ export function ExplorerOverlay({
         <p className="eyebrow">EVERYTHING IS CONNECTED</p>
         <h1 id="codeverse-title" className="hero-title">CODEVERSE</h1>
         <p className="hero-subtitle">Navigate the universe of software.</p>
-        <div className="search-shell" title="Search coming in Phase 2">
-          <Icon name="search" />
-          <input
-            className="search-input"
-            type="text"
-            readOnly
-            value=""
-            aria-label="Find your next discovery. Search coming in Phase 2."
-            aria-describedby="search-preview-hint"
-            placeholder="Find your next discovery"
-            title="Search coming in Phase 2"
-          />
-          <span className="search-shortcut" aria-hidden="true">SOON</span>
-          <span id="search-preview-hint" className="search-hint">Search coming in Phase 2</span>
-        </div>
+        <TechnologySearch onSelect={onSelect} />
       </section>
 
       <nav className="category-panel" aria-label="Filter technologies by constellation">
@@ -144,7 +135,7 @@ export function ExplorerOverlay({
       </aside>
 
       {selected && (
-        <aside className="selected-panel" data-category={selected.category} aria-labelledby="selected-technology-title">
+        <aside ref={inspector} className="selected-panel" data-category={selected.category} aria-labelledby="selected-technology-title" tabIndex={0}>
           <div className="selected-panel-topline">
             <span className="section-label">IN FOCUS</span>
             <button type="button" className="panel-close icon-button" onClick={onReset} aria-label="Close technology details and return to universe" title="Back to universe">
@@ -164,7 +155,7 @@ export function ExplorerOverlay({
             <h3 id="connected-technologies-title" className="section-label">CONNECTED TECHNOLOGIES <span className="connection-count">{connected.length}</span></h3>
             <div className="connected-list">
               {connected.map((technology) => (
-                <button key={technology.id} type="button" className="connected-button" data-category={technology.category} onClick={() => onSelect(technology.id)} aria-label={`Explore ${technology.name}, ${categories[technology.category].label}`}>
+                <button key={technology.id} type="button" className="connected-button" data-category={technology.category} onClick={(event) => { const panel = event.currentTarget.closest("aside"); panel?.focus({ preventScroll: true }); if (panel) panel.scrollTop = 0; onSelect(technology.id); }} aria-label={`Explore ${technology.name}, ${categories[technology.category].label}`}>
                   <TechnologyIcon symbol={technology.symbol} className="connected-icon" />
                   <span>{technology.name}</span>
                   <Icon name="arrow" />
@@ -173,6 +164,7 @@ export function ExplorerOverlay({
             </div>
           </section>
           <p className="connection-note">Connections reflect shared ecosystems, not dependencies.</p>
+          <TechnologyMetadata key={selected.id} id={selected.id} />
         </aside>
       )}
 
@@ -222,7 +214,7 @@ export function ExplorerOverlay({
         </ul>
         <p className="interaction-hint desktop-hint">Drag to orbit <span aria-hidden="true">/</span> Scroll to explore</p>
         <p className="interaction-hint mobile-hint">Swipe to orbit <span aria-hidden="true">/</span> Pinch to explore <span aria-hidden="true">/</span> Tap a technology</p>
-        <div className="phase-label"><span className="phase-indicator" aria-hidden="true"><span className="is-active" /><span /><span /></span><span>PHASE 01</span></div>
+        <div className="phase-label"><span className="phase-indicator" aria-hidden="true"><span className="is-active" /><span className="is-active" /><span /></span><span>PHASE 02</span></div>
       </footer>
     </div>
   );
