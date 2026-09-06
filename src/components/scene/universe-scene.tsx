@@ -44,17 +44,20 @@ function Starfield({ reducedMotion }: { reducedMotion: boolean }) {
   return <points ref={points} raycast={() => null}><bufferGeometry><bufferAttribute attach="attributes-position" args={[attributes.positions, 3]} /><bufferAttribute attach="attributes-color" args={[attributes.colors, 3]} /></bufferGeometry><pointsMaterial size={0.065} vertexColors transparent opacity={0.75} sizeAttenuation depthWrite={false} /></points>;
 }
 
+const connectionGeometry = connections.map(([sourceId, targetId]) => {
+  const a = new THREE.Vector3(...technologyById[sourceId].position);
+  const b = new THREE.Vector3(...technologyById[targetId].position);
+  const midpoint = a.clone().lerp(b, 0.5);
+  midpoint.z -= a.distanceTo(b) * 0.09;
+  return { sourceId, targetId, points: new THREE.QuadraticBezierCurve3(a, midpoint, b).getPoints(24) };
+});
+
 function ConnectionLines({ selectedId, activeCategory }: Pick<UniverseSceneProps, "selectedId" | "activeCategory">) {
-  return <group>{connections.map(([sourceId, targetId]) => {
+  return <group>{connectionGeometry.map(({ sourceId, targetId, points }) => {
     const source = technologyById[sourceId];
     const target = technologyById[targetId];
     const active = selectedId === sourceId || selectedId === targetId;
     const dimmed = selectedId ? !active : activeCategory !== "All" && source.category !== activeCategory && target.category !== activeCategory;
-    const a = new THREE.Vector3(...source.position);
-    const b = new THREE.Vector3(...target.position);
-    const midpoint = a.clone().lerp(b, 0.5);
-    midpoint.z -= a.distanceTo(b) * 0.09;
-    const points = new THREE.QuadraticBezierCurve3(a, midpoint, b).getPoints(24);
     return <Line key={`${sourceId}-${targetId}`} points={points} color={active ? categories[technologyById[selectedId!].category].color : "#7099b6"} transparent opacity={dimmed ? 0.035 : active ? 0.65 : 0.16} lineWidth={active ? 1.2 : 0.65} depthWrite={false} />;
   })}</group>;
 }
@@ -70,7 +73,7 @@ function OrbitGuides() {
 function CameraRig({ selectedId, isAutoRotate, reducedMotion, resetKey, zoomRequest, onInteract }: UniverseSceneProps) {
   const controls = useRef<CameraControls>(null);
   const { size } = useThree();
-  const isMobile = size.width < 700;
+  const isMobile = size.width <= 700;
   const overviewDistance = Math.max(23, (isMobile ? 20.5 : 22) / (2 * Math.tan(THREE.MathUtils.degToRad(22.5)) * (size.width / size.height)));
 
   useEffect(() => {
