@@ -40,7 +40,7 @@ export const technologies: Technology[] = [
 ];
 
 // These links describe ecosystem relationships, not a dependency graph.
-export const connections: ReadonlyArray<readonly [string, string]> = [
+const curatedEdges: ReadonlyArray<readonly [string, string]> = [
   ["react", "nextjs"], ["react", "nodejs"], ["vue", "nodejs"],
   ["svelte", "nodejs"], ["angular", "nodejs"], ["nextjs", "nodejs"],
   ["react", "vue"], ["react", "svelte"], ["react", "angular"],
@@ -55,6 +55,22 @@ export const connections: ReadonlyArray<readonly [string, string]> = [
 
 export const technologyById = Object.fromEntries(technologies.map((technology) => [technology.id, technology])) as Record<string, Technology>;
 
-export function getConnectedIds(id: string): string[] {
-  return connections.flatMap(([source, target]) => source === id ? [target] : target === id ? [source] : []);
+export interface Relationship {
+  source: string;
+  target: string;
+  kind: "ecosystem" | "dependency";
+  directed: boolean;
+  provenance: "curated" | "npm";
+}
+
+export const relationships: readonly Relationship[] = curatedEdges.map(([source, target]) => ({ source, target, kind: "ecosystem", directed: false, provenance: "curated" }));
+export const connections = relationships.map(({ source, target }) => [source, target] as const);
+const neighbors = new Map(technologies.map(({ id }) => [id, connections.flatMap(([source, target]) => source === id ? [target] : target === id ? [source] : [])]));
+
+export function isTechnologyId(id: string): boolean {
+  return Object.prototype.hasOwnProperty.call(technologyById, id);
+}
+
+export function getConnectedIds(id: string): readonly string[] {
+  return neighbors.get(id) ?? [];
 }
