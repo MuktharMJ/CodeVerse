@@ -29,8 +29,36 @@ function loadMetadata(id: string) {
   return promise;
 }
 
+function friendlyNotice(result: Exclude<ProviderResult<unknown>, { status: "ok" }>) {
+  const retry = result.retryAt ? `We'll retry after ${new Date(result.retryAt).toLocaleTimeString()}.` : null;
+  switch (result.status) {
+    case "rate_limited":
+      return { message: "This provider is rate-limiting right now.", retry };
+    case "timeout":
+      return { message: "The provider didn't respond in time.", retry: "Try again in a moment." };
+    case "unavailable":
+      return { message: "Provider metadata is unavailable right now.", retry: null };
+    case "not_configured":
+      return { message: result.message, retry: null };
+    default:
+      return { message: result.message, retry };
+  }
+}
+
 function ProviderNotice({ result }: { result: Exclude<ProviderResult<unknown>, { status: "ok" }> }) {
-  return <p className="metadata-notice" role="status">{result.message}{result.retryAt && <span>Retry after {new Date(result.retryAt).toLocaleTimeString()}.</span>}</p>;
+  const friendly = friendlyNotice(result);
+  return <p className="metadata-notice" role="status">{friendly.message}{friendly.retry && <span>{friendly.retry}</span>}</p>;
+}
+
+function ProviderSkeleton() {
+  return <>
+    <div className="skeleton-block" style={{ width: "62%", height: 11, borderRadius: 3 }} />
+    <div className="skeleton-stats">
+      <div className="skeleton-block" /><div className="skeleton-block" /><div className="skeleton-block" />
+    </div>
+    <div className="skeleton-block skeleton-line" style={{ width: "78%" }} />
+    <div className="skeleton-block skeleton-line" style={{ width: "48%" }} />
+  </>;
 }
 
 // Keyed by technology in the inspector, so a late response never replaces another node's data.
@@ -50,8 +78,22 @@ export function TechnologyMetadata({ id, onSelect }: { id: string; onSelect: (id
   const activity = activitySignal(data?.github ?? null, now);
   return <section className="metadata-section" aria-label="Software metadata">
     <h3 className="section-label">SIGNALS FROM THE ECOSYSTEM</h3>
-    {!data && !failed && <p className="metadata-loading" role="status">Retrieving GitHub and package signals...</p>}
-    {failed && <div className="metadata-notice" role="status">External signals are unavailable. Curated technology details and connections remain available.<button className="metadata-retry" onClick={() => { setFailed(false); setAttempt((value) => value + 1); }}>Retry metadata</button></div>}
+    {!data && !failed && <>
+      <div className="metadata-provider">
+        <h4>GitHub <span>Repository</span></h4>
+        <ProviderSkeleton />
+      </div>
+      <div className="metadata-provider">
+        <h4>npm <span>Latest package</span></h4>
+        <ProviderSkeleton />
+      </div>
+      <p className="sr-only" role="status">Retrieving GitHub and package signals…</p>
+    </>}
+    {failed && <div className="metadata-notice" role="status">
+      <span>External signals are unavailable right now.</span>
+      <span>Curated technology details and connections remain available.</span>
+      <button className="metadata-retry" onClick={() => { setFailed(false); setAttempt((value) => value + 1); }}>Retry metadata</button>
+    </div>}
     {data && <>
       <div className="metadata-provider"><h4>GitHub <span>Repository</span></h4>
         {data.github.status === "ok" ? <>
