@@ -19,6 +19,15 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
 
+function isIsoTimestamp(value: unknown): value is string {
+  if (typeof value !== "string" ||
+    !/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-]([01]\d|2[0-3]):[0-5]\d)$/.test(value) ||
+    !Number.isFinite(Date.parse(value))) return false;
+  // Date.parse normalizes impossible dates such as February 30 instead of rejecting them.
+  const date = value.slice(0, 10);
+  return new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
+}
+
 function stringRecord(value: unknown): Record<string, string> {
   if (value === undefined) return {};
   if (!isRecord(value) || !Object.values(value).every((entry) => typeof entry === "string")) {
@@ -42,6 +51,8 @@ function parseGitHub(value: unknown, repository: string): GitHubMetadata {
     forks: value.forks_count,
     openIssues: value.open_issues_count,
     language: value.language,
+    ...(value.pushed_at === null || isIsoTimestamp(value.pushed_at) ? { pushedAt: value.pushed_at } : {}),
+    ...(typeof value.archived === "boolean" ? { archived: value.archived } : {}),
   };
 }
 
@@ -97,6 +108,7 @@ function parseGitHubSnapshot(value: unknown, repository: string): GitHubMetadata
   return parseGitHub({
     full_name: value.repository, stargazers_count: value.stars, forks_count: value.forks,
     open_issues_count: value.openIssues, language: value.language,
+    pushed_at: value.pushedAt, archived: value.archived,
   }, repository);
 }
 
