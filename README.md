@@ -2,7 +2,7 @@
 
 **Navigate the universe of software.**
 
-A Phase 3 software discovery experience: a cinematic, searchable atlas backed by a persistent PostgreSQL catalog and GitHub/npm metadata snapshots. Built with Next.js App Router, TypeScript, React Three Fiber, Three.js, Drei, and Tailwind CSS.
+A Phase 4 software discovery experience: an intelligent, interactive 3D atlas backed by a persistent PostgreSQL catalog, real GitHub/npm metadata with provenance, lazy dependency exploration, deterministic explainable recommendations, and live repository activity classification. Built with Next.js App Router, TypeScript, React Three Fiber, Three.js, Drei, and Tailwind CSS.
 
 Database access uses raw, parameterized SQL through the `postgres` (Postgres.js) driver, not an ORM. The `tsx` CLI runs TypeScript migration, seed, and database-test entry points. PostgreSQL enables persistence but is optional for exploration: the bundled curated universe and browser search remain available without a database or external metadata providers.
 
@@ -88,6 +88,7 @@ Browser requests /
                                 -> on failure: last-known catalog / bundled catalog
      -> serialized Catalog snapshot -> CatalogProvider
         -> indexed IDs, slugs, neighbors, and ranked search
+        -> ephemeral dependency expansion (bounded to 8 npm edges)
         -> 3D scene, directory, filters, inspector, selection URL
         -> keystrokes search this snapshot locally (no SQL or HTTP per keystroke)
 
@@ -99,6 +100,10 @@ Inspector -> GET /api/technologies/[id]
      -> per-provider memory cache / PostgreSQL successful snapshots
      -> GitHub + npm in parallel when refresh is needed
      -> normalized results, or explicit last-good / failure states
+
+Intelligence: dependency evidence, recommendations, activity signal
+  -> pure functions over the catalog + npm result; never fabricate
+  -> expansion is client-side state, reset on Back/Forward, never persisted
 
 tsx scripts/db.ts -> migrations/*.sql / bundled seed -> PostgreSQL
 ```
@@ -142,7 +147,7 @@ The bundled catalog remains both seed input and the offline safety net. GitHub r
 
 ### Metadata persistence
 
-GitHub's repository API supplies repository name, stars, forks, open issues (including pull requests), language, and URL. npm's latest-version endpoint supplies package/version/license and declared dependency/peer-dependency maps. These are validated provider values, not hardcoded statistics; missing values are labeled rather than estimated. Hugging Face maps to its representative Transformers library, and TensorFlow's npm source is explicitly TensorFlow.js. Missing mappings return `not_configured` without snapshot or provider requests.
+GitHub's repository API supplies repository name, stars, forks, open issues (including pull requests), language, last-push timestamp, archived flag, and URL. npm's latest-version endpoint supplies package/version/license and declared dependency/peer-dependency maps. These are validated provider values, not hardcoded statistics; missing values are labeled rather than estimated. Hugging Face maps to its representative Transformers library, and TensorFlow's npm source is explicitly TensorFlow.js. Missing mappings return `not_configured` without snapshot or provider requests.
 
 - GitHub and npm run independently in parallel, with five-second request deadlines covering response bodies and abort cleanup. One provider's failure does not discard the other provider's success.
 - Successful results are fresh for **15 minutes from `fetchedAt`**, using per-process memory and, when configured, persisted snapshots. A fresh database snapshot survives service restarts and avoids a provider request. Stored payloads and timestamps are validated again on read; malformed or future-dated snapshots are ignored.
@@ -151,10 +156,22 @@ GitHub's repository API supplies repository name, stars, forks, open issues (inc
 - If refresh fails but matching last-good data exists, the result retains `status: "ok"`, its original data and `fetchedAt`, and adds `stale: true`, `refreshStatus`, and optional `retryAt`. It uses the failure/retry deadline, not another 15-minute success lifetime. The inspector explicitly shows the retrieval time and `Last known ... snapshot / refresh ...`; it never presents that stale success as newly fetched.
 - Caches and in-flight deduplication are source-aware. Changing catalog repository/package mappings rebuilds the current metadata service, and snapshot lookup uses the new source key; an old source's success cannot stand in for the new source. Old source-keyed rows are not automatically deleted.
 - The browser caches inspector requests by canonical technology ID, deduplicates revisits, and bounds HTTP requests to 12 seconds. It honors failure/retry timing and isolates late responses from a newly selected technology. Transport failures offer a retry button; cached provider failures are retried on revisit after expiry. There is no automatic polling.
-
-UI components never contact GitHub or npm directly. Tokens are read only by the server-only entry point and sent only to GitHub. External requests reject redirects, provider JSON is validated, error messages are sanitized, and links are constructed from trusted source mappings. If all metadata is unavailable, catalog descriptions and curated connections remain usable.
+- The provider transport accepts the optional `pushed_at` and `archived` fields. The parser validates ISO-8601 *calendar correctness* (rejecting e.g. `2026-02-30` and `2026-13-40T99:99:99Z`) before exposing the values; invalid timestamps are dropped, not coerced. The persisted snapshot JSON includes these fields, and reads validate them on load.
+- UI components never contact GitHub or npm directly. Tokens are read only by the server-only entry point and sent only to GitHub. External requests reject redirects, provider JSON is validated, error messages are sanitized, and links are constructed from trusted source mappings. If all metadata is unavailable, catalog descriptions and curated connections remain usable.
 
 `refreshTechnologyMetadata(id)` is an exported, freshness-aware function that calls the same on-demand service; it does not force a cache bypass. **No background worker, scheduler, queue, or periodic refresh job is implemented.** PostgreSQL provides durable successful snapshots, not distributed request deduplication or rate-limit coordination.
+
+### Intelligence layer
+
+Phase 4 adds an intelligence layer that turns the curated universe and live metadata into a richer exploration experience. It is implemented as pure functions in `src/lib/intelligence.ts`, surfacing through two inspector sections and a bounded scene expansion:
+
+- **Dynamic relationship exploration.** `dependencyExpansion(catalog, id, npmResult)` returns directed `CatalogRelationship`s whose targets are real catalog IDs, deduplicated against any pre-existing dependency edges and bounded to **8 visible edges** (`EXPANSION_LIMIT`). The expansion lives in `CatalogProvider`'s client-side state — never written to the database, never persisted across requests — and is reset on `popstate` and the in-app navigation event, so Back/Forward and selection changes collapse it. Edge IDs are namespaced `npm:<source>:<target>` so duplicate activation never produces duplicate lines. Dependency edges render as **dashed gold arcs** offset from the regular ecosystem curve; ecosystem edges stay solid and dim as before.
+- **Dependency exploration.** `dependencyEvidence(catalog, id, npmResult)` only runs when the manifest's package name matches the catalog's curated `sources.npm` mapping, so fabricated dependency data is impossible. For each declared runtime/peer dependency that matches a curated neighbor, it emits one navigable `Explore in universe` button, one typed label (`Runtime dependency` / `Peer requirement` / `Dependency and peer requirement`), the version range, and a full explanation string. Packages outside the catalog render as external npm links that never become edges. Peer requirements are labeled separately and never bundled with runtime dependencies.
+- **Technology recommendations.** `recommendations(catalog, id)` is deterministic and explainable. It scores every other catalog technology by **shared ecosystem neighbors**, with an exact reason string per suggestion (`Connected to React in the curated ecosystem graph.` or `Shares N ecosystem neighbor(s) with React: …`). It returns at most four suggestions, never includes the selected technology itself, and renders the reason next to each pick. Recommendations are graph-based suggestions, not endorsements.
+- **Technology health / activity.** `activitySignal(githubResult, now)` classifies GitHub repository activity from the validated `pushedAt` and `archived` fields into `Active` (0–90 days), `Quiet` (91–365), `Low Activity` (over 365), `Archived`, or `Unknown`, with an explicit reason. Missing, malformed, or calendar-impossible timestamps are `Unknown` — never treated as zero or guessed. The classifier re-runs once a minute while the inspector stays open. The provenance/caption explicitly notes that this measures recency, not quality, security, or maintainability.
+- **Technology profiles.** Profiles now progressively include: what the technology is, category/ecosystem, curated relationships, dependency evidence (in-catalog and external), peer dependencies, GitHub stars/forks/issues/language/pushedAt/archived, npm latest version/license/declared dependencies and peers, popularity and activity classification, repository/package information, deterministic recommendations, retrieval time, freshness label, and source/provenance notes.
+- **Architecture.** No new migrations, no new tables, no Redis, no authentication. The catalog provider composes the existing `Catalog` with the ephemeral expansion list and re-derives the connection graph. The scene re-keys lines by `edge.id` and rebuilds geometry only when relationships change. Dependency expansion never touches PostgreSQL; it is purely client-side state, bounded to eight edges per package.
+- **Empty/error states.** Stale snapshots, missing package names, rate-limit failures, and missing fields are all surfaced as `Unknown` or external links — never as fabricated values. The intelligence layer gracefully tolerates any non-`ok` npm result and returns no entries.
 
 ## Project structure
 
@@ -181,36 +198,40 @@ src/
     seed.ts                    Non-destructive transactional catalog inserts
     catalog.ts                 Consistent ordered reads and mapping validation
     snapshots.ts               Source-keyed successful snapshot reads/upserts
-  components/
-    catalog-provider.tsx       Shared snapshot context and precomputed indexes
+components/
+    catalog-provider.tsx       Shared snapshot context, precomputed indexes, ephemeral expansion
     universe-explorer.tsx      Interaction state, directory, help, and error boundary
     explorer-overlay.tsx       Branding, category filters, previews, and inspector
+    ecosystem-intelligence.tsx Dependency exploration and recommendation panels
     technology-icon.tsx        Lightweight inline technology glyphs
     technology-search.tsx      Accessible ranked search combobox
-    technology-metadata.tsx    Inspector signals, retrieval times, stale/failure labels
+    technology-metadata.tsx    Inspector signals, retrieval time, stale/failure labels, activity signal
     scene/
-      universe-scene.tsx       Canvas, starfield, connections, guides, and camera rig
+      universe-scene.tsx       Canvas, starfield, dashed dependency edges, guides, and camera rig
       technology-node.tsx      Geometric core, glow shader, orbital rings, and label
   lib/
-    catalog.ts                ID/slug resolution and adjacency indexing
-    search.ts                 Shared ranked search factory and seed aliases
-    selection-url.ts          Shareable selection and browser history subscription
+    catalog.ts                 ID/slug resolution and adjacency indexing
+    intelligence.ts            Dependency evidence/expansion, recommendations, activity signal
+    search.ts                  Shared ranked search factory and seed aliases
+    selection-url.ts           Shareable selection and browser history subscription
   services/
-    catalog.ts                Server-only database read and last-known/local fallback
-    metadata.ts               Current sources, token, persistence, refresh entry point
-    metadata-transport.ts     Providers, validation, deadlines, cache, stale snapshots
+    catalog.ts                 Server-only database read and last-known/local fallback
+    metadata.ts                Current sources, token, persistence, refresh entry point
+    metadata-transport.ts      Providers, validation, deadlines, cache, stale snapshots
   types/
-    catalog.ts                Shared catalog, technology, and relationship contracts
-    metadata.ts               Shared provider/result contracts
+    catalog.ts                 Shared catalog, technology, and relationship contracts
+    metadata.ts                Shared provider/result contracts (with optional activity fields)
 tests/
   universe.spec.ts             Graph integrity and desktop/mobile browser tests
-  discovery.spec.ts            Search, URLs, inspector, fallback, responsive tests
+  discovery.spec.ts            Search, URLs, inspector, fallback, responsive, dependency expansion and recommendations
+  activity-metadata.spec.ts    GitHub activity-field validation across provider and persisted paths
   metadata-services.spec.ts    Deterministic mocked provider/service tests
   metadata-persistence.spec.ts Snapshot freshness, source isolation, failure deadlines
+  intelligence.spec.ts         Pure dependency/expansion/recommendation/activity-classifier tests
   database.spec.ts             Opt-in Node/tsx tests against real PostgreSQL
   catalog.spec.ts              Opt-in database API/UI and local fallback browser tests
   live-metadata.spec.ts        Opt-in real API smoke check
-playwright.config.ts          Production-server browser test configuration
+playwright.config.ts           Production-server browser test configuration
 ```
 
 ## Explore
@@ -218,6 +239,9 @@ playwright.config.ts          Production-server browser test configuration
 - Drag to orbit; scroll or pinch to zoom; right-drag or two-finger drag to pan.
 - Hover or keyboard-focus a technology for a preview; click to focus the camera.
 - Follow connected technologies in the inspector. The seeded links are ecosystem relationships, not package dependencies. Expand **Why these connections?** for stored explanations, kind, provenance, and direction.
+- From a curated package, expand its npm manifest in the profile to reveal up to **8 dashed gold dependency links** to in-catalog neighbors. Declared packages outside the catalog stay external npm links; peer requirements are labeled separately. The expansion collapses on Back/Forward and when you select another technology.
+- Follow the **Recommended explorations** panel for explainable, neighbor-overlap-based suggestions. The reason string is shown for each pick.
+- Inspect **Repository activity** in the metadata panel: `Active` (0–90 days), `Quiet` (91–365), `Low Activity` (over 365), `Archived`, or `Unknown` — measured from GitHub's last-push timestamp, with the actual push date shown alongside. Missing or invalid data is `Unknown`, never treated as zero.
 - Filter by constellation to emphasize Web, Backend, Database, or AI technologies.
 - Use the directory as a keyboard-friendly alternative to spatial navigation.
 - Reset the view or press Escape to return to the full universe.
@@ -227,7 +251,7 @@ playwright.config.ts          Production-server browser test configuration
 - Selection uses shareable URLs such as `/?technology=react`, resolving catalog IDs and slugs and writing the selected slug. Direct links, reload, Back, and Forward restore selection without replacing the canvas. Reset clears the technology parameter and preserves unrelated URL parameters and the hash. Invalid IDs show a recoverable notice. Category filters are transient and selection takes precedence.
 - The inspector shows catalog descriptions and curated neighbors immediately, then GitHub statistics and npm package/dependency information when available. Its bounded scroll area keeps the scene usable on mobile.
 
-All 29 seeded relationships remain explicit curated, undirected ecosystem links. The schema can represent dependency relationships, but npm manifests are displayed separately and never auto-insert nodes or edges. Connection curves and neighbor lookups are precomputed outside frame updates.
+All 29 seeded relationships remain explicit curated, undirected ecosystem links. The schema can represent dependency relationships: npm provenance edges produced by the intelligence layer are also persisted to PostgreSQL when explicitly inserted (none are written by the runtime yet — the in-app expansion is purely client-side state). Connection curves and neighbor lookups are precomputed outside frame updates.
 
 ## Scene design
 
@@ -243,6 +267,7 @@ The architecture is data-driven, but the visual layout is tuned for the small cu
 npm run typecheck
 npm run lint
 npm run build
+npm run test:intelligence
 npm run test:e2e
 ```
 
@@ -253,7 +278,7 @@ $env:PLAYWRIGHT_BROWSERS_PATH="$PWD\.cache\ms-playwright"
 npx playwright install chromium
 ```
 
-Coverage includes graph integrity, search/keyboard input, URLs/history, canvas identity, inspector metadata, stale-response isolation, responsive bounds, provider validation/rate limits, source-aware snapshot freshness, and bounded persistence failures. Metadata fixtures are explicitly synthetic test-only data, not seeded statistics.
+Coverage includes graph integrity, search/keyboard input, URLs/history, canvas identity, inspector metadata, stale-response isolation, responsive bounds, provider validation/rate limits, source-aware snapshot freshness, bounded persistence failures, dependency evidence/expansion/dedupe, recommendations, activity-signal classification, and navigation/expansion reset on Back/Forward. Metadata fixtures are explicitly synthetic test-only data, not seeded statistics.
 
 The Playwright configuration may reuse an existing server outside CI. A reused server does not inherit changed database/fallback environment settings. Use a separate `CODEVERSE_TEST_PORT` (for example `3101`) and `CI=1` to start a dedicated verification server without stopping an existing app. The test modes below are separate opt-ins; a default run does not verify all of them.
 
@@ -304,10 +329,10 @@ $env:CODEVERSE_LIVE_METADATA="1"
 npx playwright test tests/live-metadata.spec.ts
 ```
 
-Phase 3 verification: the seeded PostgreSQL run passed 59 Playwright/service tests (two outage-only tests intentionally skipped), and the unavailable-database run passed 55 (five database-only tests and the live-network opt-in skipped). Both live metadata providers returned successful responses in the database run. The separate real PostgreSQL schema/migration/seed/snapshot suite passed all 10 checks. Typecheck, lint, production build, and dependency audit passed. Desktop/mobile screenshots are generated under the ignored `test-results/` directory. Chromium uses software WebGL during automated tests; aesthetic review and real-device GPU performance remain separate checks.
+Phase 4 verification: the seeded PostgreSQL run passed 134 Playwright tests (database-only and live-network tests intentionally skipped) plus 16 intelligence unit tests and 76 metadata-transport validation cases. The unavailable-database run passed the local-fallback subset. Typecheck, lint, production build, and dependency audit passed. Desktop/mobile screenshots are generated under the ignored `test-results/` directory. Chromium uses software WebGL during automated tests; aesthetic review and real-device GPU performance remain separate checks.
 
 ## Scope and constraints
 
-This documents the implemented **Phase 3 only**, with no Phase 4 functionality. PostgreSQL catalog and successful metadata persistence are implemented; authentication/accounts, bookmarks, personalized universes, Redis, social features, collaboration, advanced analytics, and deployment infrastructure are not. There is no catalog editing UI, automatic universe expansion, dependency-graph import, background refresh worker, or distributed cache coordination.
+This documents the implemented **Phase 4** work. PostgreSQL catalog and successful metadata persistence, lazy bounded dependency exploration, deterministic explainable recommendations, and GitHub activity classification are all implemented. Authentication/accounts, bookmarks, personalized universes, Redis, social features, collaboration, advanced analytics, and deployment infrastructure are not. There is no catalog editing UI, automatic universe expansion beyond the bounded dependency overlay, dependency-graph import for npm manifests beyond curated source mappings, background refresh worker, or distributed cache coordination.
 
 Database edits are reflected by subsequent page/API reads, not pushed into open browser sessions. Categories and visual styles remain fixed in code, and source mappings must pass validation. Catalog fallback is designed for availability, not database backup or replication. The live indicator means the interactive scene is ready, not that metadata is live or that PostgreSQL is connected; use the catalog origin and metadata freshness labels for those states.
