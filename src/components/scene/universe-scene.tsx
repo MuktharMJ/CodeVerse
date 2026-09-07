@@ -46,20 +46,22 @@ function Starfield({ reducedMotion }: { reducedMotion: boolean }) {
 }
 
 function ConnectionLines({ selectedId, activeCategory }: Pick<UniverseSceneProps, "selectedId" | "activeCategory">) {
-  const { connections, technologyById } = useCatalog();
-  const connectionGeometry = useMemo(() => connections.map(([sourceId, targetId]) => {
+  const { relationships, technologyById } = useCatalog();
+  const connectionGeometry = useMemo(() => relationships.map((edge) => {
+  const { source: sourceId, target: targetId } = edge;
   const a = new THREE.Vector3(...technologyById[sourceId].position);
   const b = new THREE.Vector3(...technologyById[targetId].position);
   const midpoint = a.clone().lerp(b, 0.5);
   midpoint.z -= a.distanceTo(b) * 0.09;
-  return { sourceId, targetId, points: new THREE.QuadraticBezierCurve3(a, midpoint, b).getPoints(24) };
-}), [connections, technologyById]);
-  return <group>{connectionGeometry.map(({ sourceId, targetId, points }) => {
+  if (edge.kind === "dependency") { midpoint.y += 0.45; midpoint.z += sourceId < targetId ? 0.5 : -0.5; }
+  return { edge, sourceId, targetId, points: new THREE.QuadraticBezierCurve3(a, midpoint, b).getPoints(24) };
+}), [relationships, technologyById]);
+  return <group>{connectionGeometry.map(({ edge, sourceId, targetId, points }) => {
     const source = technologyById[sourceId];
     const target = technologyById[targetId];
     const active = selectedId === sourceId || selectedId === targetId;
     const dimmed = selectedId ? !active : activeCategory !== "All" && source.category !== activeCategory && target.category !== activeCategory;
-    return <Line key={`${sourceId}-${targetId}`} points={points} color={active ? categories[technologyById[selectedId!].category].color : "#7099b6"} transparent opacity={dimmed ? 0.035 : active ? 0.65 : 0.16} lineWidth={active ? 1.2 : 0.65} depthWrite={false} />;
+    return <Line key={edge.id} points={points} color={edge.kind === "dependency" ? "#ffc479" : active ? categories[technologyById[selectedId!].category].color : "#7099b6"} dashed={edge.kind === "dependency"} dashSize={0.12} gapSize={0.08} transparent opacity={dimmed ? 0.035 : active ? 0.65 : 0.16} lineWidth={active ? 1.2 : 0.65} depthWrite={false} />;
   })}</group>;
 }
 
