@@ -457,7 +457,7 @@ test.describe("responsive discovery", () => {
         const inspector = page.getByRole("complementary", { name: "React", exact: true });
         await expectBounded(inspector, viewport.width, viewport.height);
         expect(await inspector.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
-        const peers = inspector.locator("details").nth(1);
+        const peers = inspector.locator(".package-dependencies").nth(1);
         await peers.locator("summary").tap();
         await peers.locator("li").scrollIntoViewIfNeeded();
         await expect(peers.locator("li")).toBeInViewport();
