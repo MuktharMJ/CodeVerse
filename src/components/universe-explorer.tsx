@@ -38,7 +38,7 @@ export function UniverseExplorer() {
   const reset = useCallback(() => {
     navigateToTechnology(null); setHoveredId(null); setActiveCategory("All"); setResetKey((key) => key + 1);
   }, []);
-  const select = useCallback((id: string) => { if (!resolveId(id)) return; navigateToTechnology(technologyById[id].slug); setHoveredId(null); setActiveCategory("All"); setAutoRotate(false); setShowDirectory(false); }, [resolveId, technologyById]);
+  const select = useCallback((id: string) => { const resolved = resolveId(id); if (!resolved) return; navigateToTechnology(technologyById[resolved].slug); setHoveredId(null); setActiveCategory("All"); setAutoRotate(false); setShowDirectory(false); }, [resolveId, technologyById]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -75,7 +75,7 @@ export function UniverseExplorer() {
       <div className="section-label">YOUR FIELD GUIDE</div><button className="help-close" aria-label="Close field guide" onClick={() => setShowHelp(false)}>×</button>
       <h2 id="help-title">A little space to explore.</h2><p>Follow your curiosity. Every point is a technology, every line a connection worth discovering.</p>
       <dl><div><dt>Orbit</dt><dd>Drag with one finger or the left mouse button</dd></div><div><dt>Zoom</dt><dd>Pinch, scroll, or use the + / − controls</dd></div><div><dt>Pan</dt><dd>Drag with two fingers or the right mouse button</dd></div><div><dt>Discover</dt><dd>Hover or keyboard-focus a technology</dd></div><div><dt>Focus</dt><dd>Click a node or choose one from the directory</dd></div><div><dt>Return</dt><dd>Press Escape or reset the view</dd></div></dl>
-      <p className="help-footnote">A visual atlas, not a dependency graph. Connections represent related tools and common ecosystem pairings.</p><button className="help-action" onClick={() => setShowHelp(false)}>Let&apos;s explore <span aria-hidden="true">↗</span></button>
+      <p className="help-footnote">Solid lines show curated ecosystem pairings. Expand a package manifest in its profile to reveal up to eight dashed dependency links. Peer requirements are labeled separately; no packages or relationships are guessed.</p><button className="help-action" onClick={() => setShowHelp(false)}>Let&apos;s explore <span aria-hidden="true">↗</span></button>
     </dialog>
     <div className="sr-only" aria-live="polite">{selectedId ? `Focused on ${technologies.find((technology) => technology.id === selectedId)?.name}. Connected technologies are available in the details panel.` : `${activeCategory === "All" ? "All constellations" : activeCategory} in view.`}</div>
   </main>;
