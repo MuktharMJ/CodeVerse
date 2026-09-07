@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { isTechnologyId } from "@/data/technologies";
+import { useCatalog } from "@/components/catalog-provider";
 
 const eventName = "codeverse:navigation";
 function subscribe(callback: () => void) {
@@ -12,7 +12,6 @@ function subscribe(callback: () => void) {
 const snapshot = () => new URLSearchParams(window.location.search).get("technology");
 
 export function navigateToTechnology(id: string | null) {
-  if (id && !isTechnologyId(id)) return;
   const url = new URL(window.location.href);
   if (id) url.searchParams.set("technology", id);
   else url.searchParams.delete("technology");
@@ -22,6 +21,7 @@ export function navigateToTechnology(id: string | null) {
 }
 
 export function useTechnologySelection() {
+  const { resolveId } = useCatalog();
   const raw = useSyncExternalStore(subscribe, snapshot, () => null);
-  return { selectedId: raw && isTechnologyId(raw) ? raw : null, invalidSelection: raw !== null && !isTechnologyId(raw) };
+  return { selectedId: raw ? resolveId(raw) : null, invalidSelection: raw !== null && !resolveId(raw) };
 }
