@@ -272,11 +272,12 @@ test("metadata loading resolves to typed GitHub, npm and dependency fixtures", a
   try {
     await page.goto("/?technology=react");
     const metadata = page.getByRole("region", { name: "Software metadata" });
-    await expect(metadata.getByRole("status")).toHaveText("Retrieving GitHub and package signals...");
-    await expect(metadata.getByRole("link")).toHaveCount(0);
+    // Initial state shows progressive skeletons for both providers.
+    await expect(metadata.locator(".skeleton-block").first()).toBeVisible();
+    await expect(metadata.locator(".metadata-link")).toHaveCount(0);
     await expect(page.locator(".selected-description")).toHaveText(technologyById.react.description);
     release();
-    await expect(metadata.locator(".metadata-loading")).toHaveCount(0);
+    await expect(metadata.locator(".skeleton-block")).toHaveCount(0);
     const github = metadata.getByRole("link", { name: /codeverse-test-only\/react/ }).first();
     await expect(github).toHaveAttribute("href", "https://github.com/codeverse-test-only/react");
     await expect(github).toHaveAttribute("target", "_blank");
@@ -312,8 +313,9 @@ test("partial rate limiting preserves npm and curated fallback details", async (
   };
   await page.goto("/?technology=react");
   const metadata = page.getByRole("region", { name: "Software metadata" });
-  await expect(metadata.getByRole("status")).toContainText("Test-only GitHub rate limit reached.");
-  await expect(metadata.getByRole("status")).toContainText("Retry after 4:00:00 AM.");
+  // Phase 5 polish: the original provider message is preserved in the data, but the inspector surfaces a friendly user-facing message.
+  await expect(metadata.locator(".metadata-notice")).toContainText("This provider is rate-limiting right now.");
+  await expect(metadata.locator(".metadata-notice")).toContainText("We'll retry after 4:00:00 AM.");
   await expect(metadata.locator(".metadata-stats")).toHaveCount(0);
   await expect(metadata.getByRole("link")).toContainText("@codeverse-test-only/react");
   await expect(metadata).toContainText("Local descriptions and curated connections remain available.");
@@ -331,7 +333,9 @@ test("total network failure leaves the inspector usable and retry fetches again"
   };
   await page.goto("/?technology=react");
   const metadata = page.getByRole("region", { name: "Software metadata" });
-  await expect(metadata.getByRole("status")).toContainText("External signals are unavailable. Curated technology details and connections remain available.");
+  // Phase 5 polish: a more readable multi-line notice that still offers retry.
+  await expect(metadata.locator(".metadata-notice")).toContainText("External signals are unavailable right now.");
+  await expect(metadata.locator(".metadata-notice")).toContainText("Curated technology details and connections remain available.");
   await expect(page.locator(".selected-description")).toHaveText(technologyById.react.description);
   await expect(page.locator(".connected-button")).toHaveCount(getConnectedIds("react").length);
   await metadata.getByRole("button", { name: "Retry metadata" }).click();
@@ -349,7 +353,8 @@ test("npm failure preserves successful GitHub signals without inventing package 
   };
   await page.goto("/?technology=react");
   const metadata = page.getByRole("region", { name: "Software metadata" });
-  await expect(metadata.getByRole("status")).toHaveText("Test-only npm request timed out.");
+  // Phase 5 polish: timeouts surface a friendly, user-facing notice while still indicating the underlying provider.
+  await expect(metadata.locator(".metadata-notice")).toContainText("The provider didn't respond in time.");
   await expect(metadata.getByRole("link")).toHaveCount(1);
   await expect(metadata.getByRole("link")).toHaveAttribute("href", "https://github.com/codeverse-test-only/react");
   await expect(metadata.locator(".metadata-stats dd")).toHaveText(["12,345", "678", "90"]);
@@ -401,7 +406,8 @@ test("revisits deduplicate in-flight and completed requests without leaking late
     await selectFromSearch(page, "next", "nextjs");
     await expect(page.locator(".metadata-link").first()).toContainText("codeverse-test-only/nextjs");
     await selectFromSearch(page, "react", "react");
-    await expect(page.locator(".metadata-loading")).toBeVisible();
+    // Phase 5 polish: loading state is rendered as skeleton blocks instead of a single text line.
+    await expect(page.locator(".skeleton-block").first()).toBeVisible();
     await selectFromSearch(page, "next", "nextjs");
     const response = page.waitForResponse((result) => new URL(result.url()).pathname === "/api/technologies/react");
     release();
@@ -410,7 +416,7 @@ test("revisits deduplicate in-flight and completed requests without leaking late
     await expect(page.locator(".metadata-link").first()).toContainText("codeverse-test-only/nextjs");
     await selectFromSearch(page, "react", "react");
     await expect(page.locator(".metadata-link").first()).toContainText("codeverse-test-only/react");
-    await expect(page.locator(".metadata-loading")).toHaveCount(0);
+    await expect(page.locator(".skeleton-block")).toHaveCount(0);
     expect(metadataMock.requests).toEqual(["react", "nextjs"]);
   } finally {
     release();
