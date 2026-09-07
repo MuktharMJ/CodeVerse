@@ -22,6 +22,8 @@ export interface GitHubMetadata {
   forks: number;
   openIssues: number;
   language: string | null;
+  pushedAt?: string | null;
+  archived?: boolean;
 }
 
 export interface NpmMetadata {
