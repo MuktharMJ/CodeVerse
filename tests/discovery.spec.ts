@@ -485,3 +485,131 @@ test.describe("invalid metadata API IDs (real route, no browser or provider netw
     });
   }
 });
+
+// Phase 4 intelligence layer: dependency expansion and explainable recommendations. The fixture is
+// overridden to align `npm.name` with the curated source mapping and declare curated-neighbor
+// package names so the dependency evidence resolves to real catalog technologies. No real package
+// names or statistics are introduced.
+test.describe("Phase 4 dependency exploration", () => {
+  test("curated-neighbor package becomes a dashed gold line in the universe and a navigable target", async ({ page, metadataMock }) => {
+    metadataMock.respond = async (id, route) => {
+      const data = metadataFixture(id);
+      // Align npm.name with the curated source "react" so dependencyEvidence actually runs.
+      // Use a recent fetchedAt so the snapshot is fresh and activitySignal classifies the push.
+      const nowIso = new Date().toISOString();
+      if (data.npm.status === "ok") data.npm.fetchedAt = nowIso;
+      if (data.github.status === "ok") data.github.fetchedAt = nowIso;
+      if (data.npm.status === "ok") {
+        data.npm.data = { ...data.npm.data, name: "react", url: "https://www.npmjs.com/package/react",
+          version: "0.0.0-test-only", license: "MIT",
+          // Declare curated package names so dependencyExpansion finds real in-catalog targets.
+          dependencies: { vue: "^3.0.0", next: "^14.0.0" },
+          peerDependencies: { "@angular/core": ">=17" },
+        };
+      }
+      // Provide pushedAt to exercise activitySignal without depending on real-world statistics.
+      if (data.github.status === "ok") {
+        data.github.data = { ...data.github.data, pushedAt: new Date(Date.now() - 86_400_000).toISOString() };
+      }
+      await route.fulfill({ json: data });
+    };
+    await page.goto("/?technology=react");
+    const inspector = page.getByRole("complementary", { name: "React", exact: true });
+    await expect(inspector.locator(".activity-signal strong")).toHaveText("Active");
+    const dependencySection = inspector.getByRole("region", { name: "Dependency exploration" });
+    await expect(dependencySection).toBeVisible();
+    await expect(dependencySection).toContainText("react@0.0.0-test-only");
+    // Curated-neighbor packages render as "Explore in universe" buttons using the npm package name.
+    const exploreButtons = dependencySection.getByRole("button").filter({ hasText: "Explore in universe" });
+    const external = dependencySection.getByRole("link").filter({ hasText: "View on npm" });
+    await expect(exploreButtons).toHaveCount(3);
+    await expect(exploreButtons.filter({ hasText: /^vue/ })).toBeVisible();
+    await expect(exploreButtons.filter({ hasText: /^next/ })).toBeVisible();
+    await expect(exploreButtons.filter({ hasText: /^@angular\/core/ })).toBeVisible();
+    await expect(external).toHaveCount(0);
+    await expect(dependencySection.locator(".metadata-caption").first()).toContainText("Exact catalog package matches only.");
+    // Toggle expansion to reveal dashed lines and the bounded cap is acknowledged.
+    await inspector.getByRole("button", { name: /Show \d+ dependency links/ }).click();
+    await expect(inspector.getByRole("button", { name: /Collapse dependency links/ })).toBeVisible();
+    // Clicking the curated-neighbor button navigates to that technology without breaking the URL.
+    await exploreButtons.filter({ hasText: /^vue/ }).click();
+    await expect(page).toHaveURL(/\?technology=vue$/);
+    await expect(page.locator(".selected-title")).toHaveText("Vue");
+    // The previous expansion is reset on navigation (popstate handler), so the new inspector starts clean.
+    await expect(inspector).toHaveCount(0);
+  });
+
+  test("declared but non-catalog packages remain external npm links and never invent catalog edges", async ({ page, metadataMock }) => {
+    metadataMock.respond = async (id, route) => {
+      const data = metadataFixture(id);
+      if (data.npm.status === "ok") {
+        data.npm.data = { ...data.npm.data, name: "react", url: "https://www.npmjs.com/package/react",
+          version: "0.0.0-test-only", license: "MIT",
+          dependencies: { "test-only-external-pkg": "^1.0.0", next: "^14.0.0" },
+          peerDependencies: {},
+        };
+      }
+      await route.fulfill({ json: data });
+    };
+    await page.goto("/?technology=react");
+    const inspector = page.getByRole("complementary", { name: "React", exact: true });
+    const dependencySection = inspector.getByRole("region", { name: "Dependency exploration" });
+    await expect(dependencySection.getByRole("link", { name: /test-only-external-pkg/ })).toHaveAttribute("href", "https://www.npmjs.com/package/test-only-external-pkg");
+    await expect(dependencySection.getByRole("button").filter({ hasText: /^next/ })).toBeVisible();
+    await expect(dependencySection.locator(".metadata-caption").last()).toContainText("Packages outside this catalog stay external.");
+  });
+
+  test("dependency expansion collapses on Back navigation and never persists", async ({ page, metadataMock }) => {
+    metadataMock.respond = async (id, route) => {
+      const data = metadataFixture(id);
+      if (data.npm.status === "ok") {
+        data.npm.data = { ...data.npm.data, name: "react", url: "https://www.npmjs.com/package/react",
+          version: "0.0.0-test-only", license: "MIT",
+          dependencies: { next: "^14.0.0", vue: "^3.0.0" }, peerDependencies: {} };
+      }
+      await route.fulfill({ json: data });
+    };
+    await page.goto("/?technology=react");
+    const inspector = page.getByRole("complementary", { name: "React", exact: true });
+    await inspector.getByRole("button", { name: /Show \d+ dependency links/ }).click();
+    await expect(inspector.getByRole("button", { name: /Collapse dependency links/ })).toBeVisible();
+    await page.goBack();
+    await expect(page).toHaveURL((url) => !url.searchParams.has("technology"));
+    await expect(page.locator(".selected-panel")).toHaveCount(0);
+    await page.goForward();
+    await expect(page.locator(".selected-title")).toHaveText("React");
+    // The active expansion must be reset on the popstate/codeverse:navigation event.
+    await expect(inspector.getByRole("button", { name: /Show \d+ dependency links/ })).toBeVisible();
+  });
+});
+
+test.describe("Phase 4 recommendations", () => {
+  test("explainable recommendations navigate without altering URL semantics", async ({ page, metadataMock }) => {
+    void metadataMock;
+    await page.goto("/?technology=react");
+    const inspector = page.getByRole("complementary", { name: "React", exact: true });
+    const recommendations = inspector.getByRole("region", { name: "Recommended explorations" });
+    await expect(recommendations).toBeVisible();
+    const items = recommendations.getByRole("button");
+    const count = await items.count();
+    expect(count).toBeGreaterThan(0);
+    expect(count).toBeLessThanOrEqual(4);
+    // Every recommendation has a reason that references React.
+    for (let index = 0; index < count; index++) {
+      await expect(items.nth(index).locator("small")).toContainText(/React/);
+    }
+    await expect(recommendations.locator(".metadata-caption")).toContainText(/not endorsements/);
+    // Clicking a recommendation navigates to that technology.
+    const firstName = (await items.first().locator("span").first().textContent())?.trim() ?? "";
+    await items.first().click();
+    await expect(page.locator(".selected-title")).toHaveText(firstName);
+    await expect(page).toHaveURL(/\?technology=/);
+  });
+
+  test("missing or invalid technology selection omits the recommendations section", async ({ page, metadataMock }) => {
+    void metadataMock;
+    await page.goto("/?test-only=preserved");
+    await expect(page.locator(".selected-panel")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Recommended explorations" })).toHaveCount(0);
+  });
+});
