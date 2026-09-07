@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import type { MetadataResponse, ProviderResult } from "@/types/metadata";
 import { useCatalog } from "./catalog-provider";
+import { DependencyExplorer } from "./ecosystem-intelligence";
+import { activitySignal } from "@/lib/intelligence";
 
 const cache = new Map<string, { expires: number; promise: Promise<MetadataResponse> }>();
 function loadMetadata(id: string) {
@@ -32,17 +34,20 @@ function ProviderNotice({ result }: { result: Exclude<ProviderResult<unknown>, {
 }
 
 // Keyed by technology in the inspector, so a late response never replaces another node's data.
-export function TechnologyMetadata({ id }: { id: string }) {
+export function TechnologyMetadata({ id, onSelect }: { id: string; onSelect: (id: string) => void }) {
   const { technologyById } = useCatalog();
   const [data, setData] = useState<MetadataResponse | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     let active = true;
     loadMetadata(id).then((result) => { if (active) { setData(result); setFailed(false); } }, () => { if (active) setFailed(true); });
     return () => { active = false; };
   }, [id, attempt]);
   const source = technologyById[id]?.sources ?? {};
+  const activity = activitySignal(data?.github ?? null, now);
   return <section className="metadata-section" aria-label="Software metadata">
     <h3 className="section-label">SIGNALS FROM THE ECOSYSTEM</h3>
     {!data && !failed && <p className="metadata-loading" role="status">Retrieving GitHub and package signals...</p>}
@@ -55,6 +60,7 @@ export function TechnologyMetadata({ id }: { id: string }) {
           <p className="metadata-caption">{data.github.data.language ?? "Language not reported"} / *Includes pull requests</p>
           <p className="metadata-fetched">Retrieved {new Date(data.github.fetchedAt).toLocaleString()}</p>
           <p className="metadata-freshness">{data.github.stale ? `Last known GitHub snapshot / refresh ${data.github.refreshStatus ?? "unavailable"}` : "GitHub snapshot / fresh at retrieval"}</p>
+          <div className="activity-signal"><span className="section-label">REPOSITORY ACTIVITY</span><strong>{activity.label}</strong><p>{activity.reason}</p>{data.github.data.pushedAt && <p>Last push: {new Date(data.github.data.pushedAt).toLocaleDateString()}</p>}</div>
         </> : <ProviderNotice result={data.github} />}
         {source.githubNote && <p className="metadata-caption">{source.githubNote}</p>}
       </div>
@@ -69,6 +75,7 @@ export function TechnologyMetadata({ id }: { id: string }) {
         {source.npmNote && <p className="metadata-caption">{source.npmNote}</p>}
       </div>
       {(data.github.status !== "ok" || !["ok", "not_configured"].includes(data.npm.status)) && <p className="metadata-caption">Local descriptions and curated connections remain available. Provider failures are retried on revisit after their cache expires.</p>}
+      <DependencyExplorer id={id} result={data.npm} onSelect={onSelect} />
     </>}
   </section>;
 }
