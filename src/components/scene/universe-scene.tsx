@@ -48,20 +48,25 @@ function Starfield({ reducedMotion }: { reducedMotion: boolean }) {
 function ConnectionLines({ selectedId, activeCategory }: Pick<UniverseSceneProps, "selectedId" | "activeCategory">) {
   const { relationships, technologyById } = useCatalog();
   const connectionGeometry = useMemo(() => relationships.map((edge) => {
-  const { source: sourceId, target: targetId } = edge;
-  const a = new THREE.Vector3(...technologyById[sourceId].position);
-  const b = new THREE.Vector3(...technologyById[targetId].position);
-  const midpoint = a.clone().lerp(b, 0.5);
-  midpoint.z -= a.distanceTo(b) * 0.09;
-  if (edge.kind === "dependency") { midpoint.y += 0.45; midpoint.z += sourceId < targetId ? 0.5 : -0.5; }
-  return { edge, sourceId, targetId, points: new THREE.QuadraticBezierCurve3(a, midpoint, b).getPoints(24) };
-}), [relationships, technologyById]);
+    const { source: sourceId, target: targetId } = edge;
+    const a = new THREE.Vector3(...technologyById[sourceId].position);
+    const b = new THREE.Vector3(...technologyById[targetId].position);
+    const midpoint = a.clone().lerp(b, 0.5);
+    midpoint.z -= a.distanceTo(b) * 0.09;
+    if (edge.kind === "dependency") { midpoint.y += 0.45; midpoint.z += sourceId < targetId ? 0.5 : -0.5; }
+    return { edge, sourceId, targetId, points: new THREE.QuadraticBezierCurve3(a, midpoint, b).getPoints(24) };
+  }), [relationships, technologyById]);
+  const selectedCategoryColor = selectedId ? categories[technologyById[selectedId].category].color : null;
   return <group>{connectionGeometry.map(({ edge, sourceId, targetId, points }) => {
     const source = technologyById[sourceId];
     const target = technologyById[targetId];
     const active = selectedId === sourceId || selectedId === targetId;
     const dimmed = selectedId ? !active : activeCategory !== "All" && source.category !== activeCategory && target.category !== activeCategory;
-    return <Line key={edge.id} points={points} color={edge.kind === "dependency" ? "#ffc479" : active ? categories[technologyById[selectedId!].category].color : "#7099b6"} dashed={edge.kind === "dependency"} dashSize={0.12} gapSize={0.08} transparent opacity={dimmed ? 0.035 : active ? 0.65 : 0.16} lineWidth={active ? 1.2 : 0.65} depthWrite={false} />;
+    const color = edge.kind === "dependency" ? "#ffc479" : active && selectedCategoryColor ? selectedCategoryColor : "#7099b6";
+    // Dependency edges stay slightly more visible when dimmed so the curated-vs-declared distinction is preserved.
+    const opacity = dimmed ? (edge.kind === "dependency" ? 0.07 : 0.04) : active ? 0.65 : 0.18;
+    const lineWidth = active ? 1.2 : 0.65;
+    return <Line key={edge.id} points={points} color={color} dashed={edge.kind === "dependency"} dashSize={0.1} gapSize={0.08} transparent opacity={opacity} lineWidth={lineWidth} depthWrite={false} />;
   })}</group>;
 }
 
@@ -97,7 +102,7 @@ function CameraRig({ selectedId, isAutoRotate, reducedMotion, resetKey, zoomRequ
     if (isAutoRotate && !selectedId && !reducedMotion) void controls.current?.rotate(delta * 0.025, 0, false);
   });
 
-  return <CameraControls ref={controls} makeDefault minDistance={5} maxDistance={Math.max(55, overviewDistance + 10)} smoothTime={0.8} draggingSmoothTime={0.16} minPolarAngle={Math.PI * 0.15} maxPolarAngle={Math.PI * 0.85} onStart={onInteract} />;
+  return <CameraControls ref={controls} makeDefault minDistance={5} maxDistance={Math.max(55, overviewDistance + 10)} smoothTime={0.9} draggingSmoothTime={0.18} minPolarAngle={Math.PI * 0.15} maxPolarAngle={Math.PI * 0.85} onStart={onInteract} />;
 }
 
 function SceneContent(props: UniverseSceneProps) {
