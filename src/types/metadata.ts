@@ -1,7 +1,16 @@
+export type ProviderFailureStatus = "unavailable" | "rate_limited" | "timeout" | "not_configured";
+
 export type ProviderResult<T> =
-  | { status: "ok"; data: T; fetchedAt: string }
   | {
-      status: "unavailable" | "rate_limited" | "timeout" | "not_configured";
+      status: "ok";
+      data: T;
+      fetchedAt: string;
+      stale?: boolean;
+      refreshStatus?: ProviderFailureStatus;
+      retryAt?: string;
+    }
+  | {
+      status: ProviderFailureStatus;
       message: string;
       retryAt?: string;
     };
