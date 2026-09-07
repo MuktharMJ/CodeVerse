@@ -79,7 +79,7 @@ export function ExplorerOverlay({
           <span className="brand-label">SOFTWARE ATLAS</span>
         </div>
         <div className="edition">
-          <span className="edition-label" title={stale ? "Last known database catalog; connection unavailable" : origin === "database" ? "Persistent PostgreSQL catalog" : "Curated local fallback catalog"}>EXPLORER / 004 · {stale ? "CACHED" : origin === "database" ? "CONNECTED" : "LOCAL"}</span>
+          <span className="edition-label" title={stale ? "Last known database catalog; connection unavailable" : origin === "database" ? "Persistent PostgreSQL catalog" : "Curated local fallback catalog"}>CODEVERSE ATLAS · {stale ? "CACHED" : origin === "database" ? "CONNECTED" : "LOCAL"}</span>
           <span className="live-status" role="status">
             <span className={`live-dot${sceneReady ? " is-live" : " is-loading"}`} aria-hidden="true" />
             {sceneFailed ? "DIRECTORY MODE" : sceneReady ? "LIVE UNIVERSE" : "MAPPING THE UNIVERSE"}
