@@ -8,12 +8,16 @@
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:db": "tsx --test tests/database.spec.ts",
+    "db:migrate": "tsx scripts/db.ts migrate",
+    "db:seed": "tsx scripts/db.ts seed"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
     "next": "^16.3.4",
+    "postgres": "^3.4.9",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "three": "^0.184.0"
@@ -28,6 +32,7 @@
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.3.4",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.0"
   }
 }
