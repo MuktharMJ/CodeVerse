@@ -79,6 +79,12 @@ button:disabled { cursor: not-allowed; opacity: 0.35; }
 .metadata-stats dd { color: #d0dff0; font-size: 14px; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
 .metadata-caption, .metadata-fetched { color: #8094af; font-size: 9px; line-height: 1.7; margin: 8px 0; overflow-wrap: anywhere; }
 .metadata-fetched { color: #627792; font-size: 8px; }
+.metadata-freshness { color: #92ada5; font-size: 8px; line-height: 1.7; }
+.relationship-details { font-size: 10px; color: #93a9c3; margin-top: 16px; }
+.relationship-details summary { cursor: pointer; padding: 6px 0; }
+.relationship-details > div { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 9px; }
+.relationship-details p { font-size: 9px; line-height: 1.7; margin: 5px 0; }
+.relationship-details span { font-family: var(--font-mono); font-size: 8px; color: #6e899f; }
 .metadata-notice, .metadata-loading { font-size: 10px; line-height: 1.8; color: #8a9fba; margin: 12px 0; }
 .metadata-notice span { display: block; }
 .metadata-loading { animation: signal-pulse 1.8s ease-in-out infinite; }

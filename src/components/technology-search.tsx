@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { searchTechnologies } from "@/lib/search";
+import { useCatalog } from "./catalog-provider";
 import { categories } from "@/data/technologies";
 import { TechnologyIcon } from "./technology-icon";
 
 export function TechnologySearch({ onSelect }: { onSelect: (id: string) => void }) {
+  const { search: searchTechnologies } = useCatalog();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);

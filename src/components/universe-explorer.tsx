@@ -3,7 +3,8 @@
 import dynamic from "next/dynamic";
 import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ExplorerOverlay } from "./explorer-overlay";
-import { categories, technologies, type CategoryFilter } from "@/data/technologies";
+import { categories, type CategoryFilter } from "@/data/technologies";
+import { useCatalog } from "./catalog-provider";
 import { navigateToTechnology, useTechnologySelection } from "@/lib/selection-url";
 
 const UniverseScene = dynamic(() => import("./scene/universe-scene"), { ssr: false });
@@ -16,6 +17,7 @@ class SceneBoundary extends Component<{ children: ReactNode; onError: () => void
 }
 
 export function UniverseExplorer() {
+  const { technologies, technologyById, resolveId, origin } = useCatalog();
   const { selectedId, invalidSelection } = useTechnologySelection();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [categoryFilter, setActiveCategory] = useState<CategoryFilter>("All");
@@ -36,7 +38,7 @@ export function UniverseExplorer() {
   const reset = useCallback(() => {
     navigateToTechnology(null); setHoveredId(null); setActiveCategory("All"); setResetKey((key) => key + 1);
   }, []);
-  const select = useCallback((id: string) => { navigateToTechnology(id); setHoveredId(null); setActiveCategory("All"); setAutoRotate(false); setShowDirectory(false); }, []);
+  const select = useCallback((id: string) => { if (!resolveId(id)) return; navigateToTechnology(technologyById[id].slug); setHoveredId(null); setActiveCategory("All"); setAutoRotate(false); setShowDirectory(false); }, [resolveId, technologyById]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -58,13 +60,13 @@ export function UniverseExplorer() {
     else dialog.current?.close();
   }, [showHelp]);
 
-  return <main className="universe-explorer" aria-label="CODEVERSE interactive software universe">
+  return <main className="universe-explorer" data-catalog-origin={origin} aria-label="CODEVERSE interactive software universe">
     <div className="space-backdrop" aria-hidden="true"><div className="nebula nebula-web" /><div className="nebula nebula-ai" /><div className="nebula nebula-data" /><div className="space-grain" /></div>
     <div className="scene-container" aria-label="Interactive 3D technology graph">
       <SceneBoundary onError={fail}><UniverseScene selectedId={selectedId} hoveredId={hoveredId} activeCategory={activeCategory} isAutoRotate={isAutoRotate} reducedMotion={reducedMotion} resetKey={resetKey} zoomRequest={zoomRequest} onSelect={select} onHover={setHoveredId} onReady={ready} onInteract={interact} onUnavailable={fail} /></SceneBoundary>
     </div>
     <div className="scene-vignette" aria-hidden="true" />
-    {!sceneReady && <div className="scene-loading" role="status"><span className="loading-orbit" />Mapping the universe<span>17 technologies. Infinite possibilities.</span></div>}
+    {!sceneReady && <div className="scene-loading" role="status"><span className="loading-orbit" />Mapping the universe<span>{technologies.length} technologies. Infinite possibilities.</span></div>}
     <ExplorerOverlay selectedId={selectedId} hoveredId={hoveredId} activeCategory={activeCategory} onCategoryChange={(category) => { setActiveCategory(category); navigateToTechnology(null); setHoveredId(null); }} onSelect={select} onReset={reset} onZoom={(direction) => setZoomRequest((request) => ({ direction, key: (request?.key ?? 0) + 1 }))} isAutoRotate={isAutoRotate} onToggleRotate={() => setAutoRotate((value) => !value)} onShowHelp={() => setShowHelp(true)} sceneReady={sceneReady && !sceneFailed} sceneFailed={sceneFailed} reducedMotion={reducedMotion} />
     {invalidSelection && <div className="navigation-notice" role="status">That technology isn&apos;t in this universe yet. <button onClick={reset}>Return to the atlas</button></div>}
     <button className="directory-toggle" onClick={() => setShowDirectory((value) => !value)} aria-expanded={showDirectory} aria-controls="technology-directory">{showDirectory ? "Close directory" : "Browse technologies"}<span aria-hidden="true">{showDirectory ? "−" : "↗"}</span></button>

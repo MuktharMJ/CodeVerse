@@ -2,9 +2,10 @@
 
 import { CameraControls, Line } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { categories, connections, getConnectedIds, technologies, technologyById, type CategoryFilter } from "@/data/technologies";
+import { categories, type CategoryFilter } from "@/data/technologies";
+import { useCatalog } from "../catalog-provider";
 import { TechnologyNode } from "./technology-node";
 
 export interface UniverseSceneProps {
@@ -44,15 +45,15 @@ function Starfield({ reducedMotion }: { reducedMotion: boolean }) {
   return <points ref={points} raycast={() => null}><bufferGeometry><bufferAttribute attach="attributes-position" args={[attributes.positions, 3]} /><bufferAttribute attach="attributes-color" args={[attributes.colors, 3]} /></bufferGeometry><pointsMaterial size={0.065} vertexColors transparent opacity={0.75} sizeAttenuation depthWrite={false} /></points>;
 }
 
-const connectionGeometry = connections.map(([sourceId, targetId]) => {
+function ConnectionLines({ selectedId, activeCategory }: Pick<UniverseSceneProps, "selectedId" | "activeCategory">) {
+  const { connections, technologyById } = useCatalog();
+  const connectionGeometry = useMemo(() => connections.map(([sourceId, targetId]) => {
   const a = new THREE.Vector3(...technologyById[sourceId].position);
   const b = new THREE.Vector3(...technologyById[targetId].position);
   const midpoint = a.clone().lerp(b, 0.5);
   midpoint.z -= a.distanceTo(b) * 0.09;
   return { sourceId, targetId, points: new THREE.QuadraticBezierCurve3(a, midpoint, b).getPoints(24) };
-});
-
-function ConnectionLines({ selectedId, activeCategory }: Pick<UniverseSceneProps, "selectedId" | "activeCategory">) {
+}), [connections, technologyById]);
   return <group>{connectionGeometry.map(({ sourceId, targetId, points }) => {
     const source = technologyById[sourceId];
     const target = technologyById[targetId];
@@ -71,6 +72,7 @@ function OrbitGuides() {
 }
 
 function CameraRig({ selectedId, isAutoRotate, reducedMotion, resetKey, zoomRequest, onInteract }: UniverseSceneProps) {
+  const { technologyById } = useCatalog();
   const controls = useRef<CameraControls>(null);
   const { size } = useThree();
   const isMobile = size.width <= 700;
@@ -86,7 +88,7 @@ function CameraRig({ selectedId, isAutoRotate, reducedMotion, resetKey, zoomRequ
     } else {
       void controller.setLookAt(0, 1.6, overviewDistance, 0, 0.8, 0, !reducedMotion);
     }
-  }, [selectedId, resetKey, isMobile, overviewDistance, reducedMotion]);
+  }, [selectedId, resetKey, isMobile, overviewDistance, reducedMotion, technologyById]);
 
   useEffect(() => { if (zoomRequest) void controls.current?.dolly(zoomRequest.direction * 2.8, !reducedMotion); }, [zoomRequest, reducedMotion]);
   useFrame((_, delta) => {
@@ -97,6 +99,7 @@ function CameraRig({ selectedId, isAutoRotate, reducedMotion, resetKey, zoomRequ
 }
 
 function SceneContent(props: UniverseSceneProps) {
+  const { technologies, getConnectedIds } = useCatalog();
   const connectedIds = props.selectedId ? getConnectedIds(props.selectedId) : [];
   const { onReady } = props;
   useEffect(() => { onReady(); }, [onReady]);
