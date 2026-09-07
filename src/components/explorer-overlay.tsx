@@ -215,7 +215,6 @@ export function ExplorerOverlay({
         </ul>
         <p className="interaction-hint desktop-hint">Drag to orbit <span aria-hidden="true">/</span> Scroll to explore</p>
         <p className="interaction-hint mobile-hint">Swipe to orbit <span aria-hidden="true">/</span> Pinch to explore <span aria-hidden="true">/</span> Tap a technology</p>
-        <div className="phase-label"><span className="phase-indicator" aria-hidden="true"><span className="is-active" /><span className="is-active" /><span className="is-active" /></span><span>PHASE 04</span></div>
       </footer>
     </div>
   );
