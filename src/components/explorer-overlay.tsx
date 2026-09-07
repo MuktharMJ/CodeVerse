@@ -8,6 +8,7 @@ import { TechnologyIcon } from "./technology-icon";
 import { TechnologySearch } from "./technology-search";
 import { TechnologyMetadata } from "./technology-metadata";
 import { useCatalog } from "./catalog-provider";
+import { EcosystemRecommendations } from "./ecosystem-intelligence";
 
 export interface ExplorerOverlayProps {
   selectedId: string | null;
@@ -78,7 +79,7 @@ export function ExplorerOverlay({
           <span className="brand-label">SOFTWARE ATLAS</span>
         </div>
         <div className="edition">
-          <span className="edition-label" title={stale ? "Last known database catalog; connection unavailable" : origin === "database" ? "Persistent PostgreSQL catalog" : "Curated local fallback catalog"}>EXPLORER / 003 · {stale ? "CACHED" : origin === "database" ? "CONNECTED" : "LOCAL"}</span>
+          <span className="edition-label" title={stale ? "Last known database catalog; connection unavailable" : origin === "database" ? "Persistent PostgreSQL catalog" : "Curated local fallback catalog"}>EXPLORER / 004 · {stale ? "CACHED" : origin === "database" ? "CONNECTED" : "LOCAL"}</span>
           <span className="live-status" role="status">
             <span className={`live-dot${sceneReady ? " is-live" : " is-loading"}`} aria-hidden="true" />
             {sceneFailed ? "DIRECTORY MODE" : sceneReady ? "LIVE UNIVERSE" : "MAPPING THE UNIVERSE"}
@@ -161,9 +162,10 @@ export function ExplorerOverlay({
               ))}
             </div>
           </section>
-          <p className="connection-note">Connections reflect shared ecosystems, not dependencies.</p>
+          <p className="connection-note">Solid lines: ecosystem links. Dashed gold lines: declared manifest requirements, directed from source to target.</p>
           <details className="relationship-details"><summary>Why these connections?</summary>{relationships.filter((edge) => edge.source === selected.id || edge.target === selected.id).map((edge) => <div key={edge.id}><p>{technologyById[edge.source].name} {edge.directed ? "→" : "↔"} {technologyById[edge.target].name}</p><span>{edge.kind === "dependency" ? "Declared dependency" : "Ecosystem relationship"} / {edge.provenance}</span><p>{edge.explanation ?? "An explicit relationship in the CODEVERSE catalog."}</p></div>)}</details>
-          <TechnologyMetadata key={selected.id} id={selected.id} />
+          <TechnologyMetadata key={selected.id} id={selected.id} onSelect={onSelect} />
+          <EcosystemRecommendations id={selected.id} onSelect={onSelect} />
         </aside>
       )}
 
@@ -213,7 +215,7 @@ export function ExplorerOverlay({
         </ul>
         <p className="interaction-hint desktop-hint">Drag to orbit <span aria-hidden="true">/</span> Scroll to explore</p>
         <p className="interaction-hint mobile-hint">Swipe to orbit <span aria-hidden="true">/</span> Pinch to explore <span aria-hidden="true">/</span> Tap a technology</p>
-        <div className="phase-label"><span className="phase-indicator" aria-hidden="true"><span className="is-active" /><span className="is-active" /><span className="is-active" /></span><span>PHASE 03</span></div>
+        <div className="phase-label"><span className="phase-indicator" aria-hidden="true"><span className="is-active" /><span className="is-active" /><span className="is-active" /></span><span>PHASE 04</span></div>
       </footer>
     </div>
   );
