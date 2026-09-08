@@ -4,7 +4,7 @@
 
 An intelligent, interactive 3D atlas of the software ecosystem — built with real GitHub and npm data, a persistent PostgreSQL catalog, and an explainable intelligence layer that surfaces dependencies, recommendations, and repository activity. Curated, never fabricated.
 
-![CODEVERSE — interactive 3D atlas of the software ecosystem](https://codeverse.example/icon)
+![CODEVERSE — interactive 3D atlas of the software ecosystem](docs/preview.png)
 
 [Overview](#overview) · [Features](#features) · [Stack](#stack) · [Architecture](#architecture) · [Scope](#scope) · [License](#license)
 
